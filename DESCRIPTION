@@ -1,0 +1,19 @@
+Package: stableBiomarker
+Type: Package
+Title: Pipeline To Select Biomarker Signature from Omics Data (Title Case)
+Version: 0.1.0
+Authors@R: person("Jelena", "Chuklina", email = "chuklina.jelena@gmail.com", role = c("aut","cre"))
+Maintainer: The package maintainer <chuklina.jelena@gmail.com>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Imports: 
+  plyr, 
+  dplyr, 
+  tidyr, 
+  data.table, 
+  caret, 
+  OmicsMarkeR, 
+  ggplot2

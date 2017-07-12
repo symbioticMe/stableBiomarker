@@ -1,5 +1,5 @@
 
-read.config <- function(file){
+read_config <- function(file){
   fc = file(file, encoding = "UTF-8")
   config <- strsplit(readLines(fc), '\n')
   #remove empty lines
@@ -12,7 +12,7 @@ read.config <- function(file){
     flush.console()
     stop('Check the config file')
   }
-    
+
   names(config) <- sapply(config, function(entry) entry[1])
   config <- lapply(config, function(entry) entry[2])
 }

@@ -1,98 +1,160 @@
-#' Title
+#' Main function to train the model and get a (ranked) list of features
 #'
-#' @param data 
-#' @param response 
+#' @param data an object where samples are in rows and features are in columns
+#' and one column is the response. This can be a data.frame or data.table.
+#' Other types not tested
+#' @param response a string specifying the name of the column with the response
+#' @param method a string specifying which model to use
+#' @param fs.method a string specifying which feature selection method to use
+#' @param fs.config a list specifying configurations of the feature selection method
+#' @param times number of repetitions for resampling
+#' @param resamplingConfig configuration of resampling
+#'
+#' @return list containing:
+#' \item{result}{TO FIX}
+#' \item{next item}{TO FIX}
+#'
+#' @export
+#' @importFrom parallel mclapply detectCores
+train_main <- function(data, response = '.outcome',
+                       method = 'rf', fs.method = 'TopN',
+                       fs.config = ifelse(fs.method = 'TopN', list(top.n = 100), NULL),
+                       repeats = 100,
+                       resamplingConfig = list(method = 'Fraction', p = .9),
+                       optim.config = optim_config, parallel = F){
+
+  #create resampling index
+  resampleIndex <- create_resampling(resamplingConfig,
+                                     times = repeats,
+                                     response = data[[response]])
+
+  nr = nrow(data)
+  outTrain <- lapply(resampleIndex,
+                     function(inTrain, total) total[-unique(inTrain)],
+                     total = seq(nr))
+  if (!parallel){
+    result <- lapply(1:repeats, function(k)
+      train_with_feature_extraction(data, response.column = response,
+                                    inTrain = resampleIndex[[k]],
+                                    outTrain = outTrain[[k]],
+                                    method = method,
+                                    fs.method = fs.method,
+                                    fs.config = fs.config,
+                                    optim.config = optim.config))
+  } else {
+    mc.cores = detectCores()
+    result <- mclapply(1:repeats, function(k)
+      train_with_feature_extraction(data, response.column = response,
+                                    inTrain = resampleIndex[[k]],
+                                    outTrain = outTrain[[k]],
+                                    method = method,
+                                    fs.method = fs.method,
+                                    fs.config = fs.config,
+                                    optim.config = optim.config), mc.cores = mc.cores)
+  }
+
+  importance = lapply(result, function(res) res$importance)
+  performance.train = lapply(result, function(res) res$perf.training)
+  performance.test = lapply(result, function(res) res$perf.test)
+
+  return(list(importance = importance,
+              performance.test = performance.test,
+              performance.train = performance.train,
+              repeats = repeats,
+              fs.config = fs.config,
+              resamplingConfig = resamplingConfig,
+              method = method,
+              fs.method = fs.method,
+              optim.config = optim.config))
+}
+
+#' Workhorse function to extract model performance and feature list
+#'
+#' @param response.column name of the column with responses
+#' @param resampleIndex list of the integer indices of samples to be included in
+#'  the model
+#' @param inTrain indices to be included in the model
+#' @param outTrain indices of the hold-out samples
+#' @param method machine learning method to be used to build the model
+#' @param fs.method feature selection method to be used to select features
+#' @param fs.config configurations of the feature selection model
+#' @param data data frame or data table used to build the model
 #'
 #' @return A list is returned  containing: \item{method
-#' }{the object of class \code{train}.see \code{\link[caret]{train}}} 
-#' \item{importance}{list of variables (predictors) with their corresponding 
+#' }{the object of class \code{train}.see \code{\link[caret]{train}}}
+#' \item{importance}{list of variables (predictors) with their corresponding
 #' importance values or coefficients, see \link[caret]{varImp}}
 #' \item{results }{a data frame the training error rate and values of the
 #' tuning parameters.} \item{bestTune }{a data frame with the final
 #' parameters.}
 #' @export
+#'@import dplyr
+#'@importFrom caret train varImp postResample trainControl
 #'
 #'@author Jelena Chuklina (the guts of \code{train.with.feature.extraction}
-#' is a wrapper aroung the functions of \code[caret]{train})
-#'#'
-#' @examples
-train.with.feature.extraction <- function(data, response.column, resampleIndex, 
-                                          inTrain, outTrain, 
-                                          method, fs.method, fs.config){
+#' is a wrapper aroung the functions of \code{\link[caret]{train}})
+#'
+#'
 
-  
+train_with_feature_extraction <- function(data, inTrain, outTrain,
+                                          method, fs.method, fs.config,
+                                          response = '.outcome',
+                                          optim.config = NULL, ...){
+
+
   #for each resampling:
   training = data[inTrain, ]
   test = data[outTrain, ]
-  if (method == 'rf'){
-    model.train = train(training[,-response.column], training[[response.column]], 
-                        method = method, 
-                        trControl = trainControl(method = 'none'), importance = T, ...)
-  }
-  else {
-    model.train =train(training[,-response], training[[response]], method = method, 
-                       trControl = trainControl(method = 'none'),  ...)
-  }
+
+  if (is.null(optim.config)){
+    trControl = trainControl(method = 'none')
+    if (method == 'rf'){
+      model.train = train(x = training %>% select(-one_of(response.column)),
+                          y = training[[response.column]],
+                          method = method,
+                          trControl = trControl,
+                          importance = T, ...)
+    } else {
+      model.train = train(x = training %>% select(-one_of(response.column)),
+                          y = training[[response.column]],
+                          method = method,
+                          trControl = trControl,  ...)
+    }
+
+
+  } else {
+    #TODO configure trainControl
+    trControl = trainControl(method = optim.config$internal_resampling)
+    model.train = ifelse(method == 'rf',
+                         train(x = training %>% select(-one_of(response.column)),
+                               y = training[[response.column]],
+                               method = method,
+                               trControl = trControl,
+                               importance = T, ...),
+                         train(x = training %>% select(-one_of(response.column)),
+                               y = training[[response.column]],
+                               method = method,
+                               trControl = trControl,  ...))
+    }
+
   fitted.model = model.train$finalModel
-  model = model.train$models
-  train.fit.result = model$predict(fitted.model, newdata = training[,-response.column])
-  test.fit.result = model$predict(fitted.model, newdata = test[,-response.column])
-  
+  model = model.train$modelInfo
+  train.fit.result = model$predict(fitted.model,
+                                   newdata = training %>% select(-one_of(response.column)))
+  test.fit.result = model$predict(fitted.model,
+                                  newdata = test %>% select(-one_of(response.column)))
+
   #calculate the performance (in-Train and hold-out set)
   perf.training = postResample(train.fit.result, training[[response.column]])
   perf.test = postResample(test.fit.result, test[[response.column]])
-  
+
   importance = varImp(model.train)
-  return(list(train = model.train, 
-              importance = importance, 
-              perf.training, 
-              perf.test,
-              fs.config,
-              fs.method))
+  return(list(train = model.train,
+              importance = importance,
+              perf.training = perf.training,
+              perf.test = perf.test,
+              fs.config = fs.config,
+              fs.method = fs.method))
 }
 
-#' Title
-#'
-#' @param data 
-#' @param response 
-#' @param method 
-#' @param fs.method 
-#' @param fs.config 
-#' @param times 
-#' @param resamplingConfig 
-#'
-#' @return
-#' @export
 
-#'
-#' @examples
-train.main <- function(data, response = 'outcome', 
-                  method = 'rf', fs.method = 'TopN', 
-                  fs.config = ifelse(fs.method = 'TopN', top.n = 100, NULL),
-                  repeats = 100, 
-                  resamplingConfig = list(method = 'Fraction', p = .9)){
-
-  #check the resampling configuration
-  resampleIndex <- create.resampling(data[['response']], resamplingConfig)
-
-  nr = nrow(data)
-  outTrain <- lapply(resampleIndex, 
-                     function(inTrain, total) total[-unique(inTrain)],
-                     total = seq(nr))
-  if (!parallel){
-    result <- lapply(1:repeats, function(k)
-      train.with.feature.extraction(data, response, resampleIndex[[k]], outTrain[[k]], 
-                      method, fs.method, fs.config))
-  } else {
-    result <- mclapply(1:repeats, function(k)
-      train.with.feature.extraction(data, response, resampleIndex[[k]], outTrain[[k]], 
-                      method, fs.method, fs.config))
-  }
-  
-  importance.list = lapply(result, function(res) res$importance)
-  performance.list = lapply(result, function(res) res$perf.training)
-  performance.test.list = lapply(result, function(res) res$perf.test)
-    
-  return(result = result,
-         repeats, fs.config, resamplingConfig, method, fs.method)
-}

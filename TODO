@@ -1,2 +1,14 @@
 1. Delete hello.R when I understand why it pops-up in the first place
 2. Write check_fs_config as soon as I move to smth more sophisticated than TopN
+3. unify camel-case and _-style function and variable names, e.g. in train
+4. in read_data change the return response_column for cases when the
+response_column is not renamed
+5. Update the license
+6. Supplement all awful trains of if else by switch?
+7. add check method (if it is in caret machine learning methods)
+8. update the documentation to the check config files, so that it lists all
+tested options and makes the link to the config.README file
+9. in configure.R in check_optimization_config, check for the values of internal
+resampling. Possibly, write a small sub-function to check the values for resampling
+configuration.
+10.

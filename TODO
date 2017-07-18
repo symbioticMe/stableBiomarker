@@ -11,4 +11,5 @@ tested options and makes the link to the config.README file
 9. in configure.R in check_optimization_config, check for the values of internal
 resampling. Possibly, write a small sub-function to check the values for resampling
 configuration.
-10.
+10. to stability.R add multi-set stability
+11. Add verbosity option to train

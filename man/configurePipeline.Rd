@@ -4,7 +4,7 @@
 \alias{configurePipeline}
 \title{configure the training}
 \usage{
-configurePipeline(configFile, data)
+configurePipeline(configFile, data, response.column)
 }
 \arguments{
 \item{configFile}{name of the file with configuration}

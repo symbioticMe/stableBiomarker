@@ -13,15 +13,30 @@
 #' @importFrom data.table fread
 read_data <- function(data.file, response.column,
                       response.file = NULL,
-                      match.column = NULL){
+                      match.column = NULL, verbose = F){
   if (!is.null(response.file)){
     x = fread(data.file, header = T)
     y = fread(response.file, header = T)
 
+    if (verbose) {
+      print('files have been read...')
+      flush.console()
+    }
+
+
     #here will be if about how to call response.column
+    if (is.null(match.column)){
+      stop('Column(s) to match predictor file and response file not provided')
+    }
+    #TODO: think to make this optional/default option
     data = merge(x, y, by = match.column) %>%
       select(-one_of(setdiff(names(y), response.column))) %>%
       rename_('.outcome' = response.column)
+
+  if (verbose){
+    print('data have been merged')
+    flush.console()
+  }
   } else {
     if (is.null(match.column)){
       stop('Column(s) to match predictor file and response file not provided')
@@ -29,6 +44,7 @@ read_data <- function(data.file, response.column,
       data = fread(data.file, header = T)
     }
   }
+
   return(list(data = data,
-              response.column = response.column))
+              response.column = '.outcome'))
 }

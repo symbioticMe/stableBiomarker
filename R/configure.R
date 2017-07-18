@@ -8,7 +8,7 @@
 #' \item{resamp_config}{resampling configuration list}
 #' \item{optimization_config}{optimization configuration list}
 #' @export
-configurePipeline <- function(configFile, data){
+configurePipeline <- function(configFile, data, response.column){
   config = read_config(configFile)
 
   #TODO: write the check for the availability of machine learning methods
@@ -24,7 +24,8 @@ configurePipeline <- function(configFile, data){
   #resamp_config = check_resamp(config)
   resamp_config = check_resamp_config(config = config)
   optim_config = check_optimization_config(config = config,
-                                           data = data, response.column = 'lpsa')
+                                           data = data,
+                                           response.column = response.column)
   return(list(fs_config = fs_config,
               optim_config = optim_config,
               resamp_config = resamp_config,
@@ -34,7 +35,7 @@ configurePipeline <- function(configFile, data){
 #' Read and parse configuration file
 #'
 #' @param fileName path to the file with configuration options
-#'
+#'@importFrom utils flush.console
 #' @return list with configuration parameters
 read_config <- function(fileName){
   fc = file(fileName, encoding = "UTF-8")
@@ -73,14 +74,14 @@ check_fs_config <- function(fsMethod, config, data){
     fs_config = list(topN = min(100, round(0.1 * ncol(data))))
   }
   else if (fsMethod == 'TopN'){
-    if (!('top_n' %in% names(config))){
+    if (!('top_n' %in% tolower(names(config)))){
       fs_config$top_n = min(100, round(0.1 * ncol(data)))
     } else {
       if (as.numeric(config$top_n) > .5*ncol(data)){
         warning('number of top features is more than a half of total number of features,
                 are you sure?')
-        fs_config$top_n = config$top_n
       }
+      fs_config$top_n = as.numeric(config$top_n)
     }
   }
     return(list(fs_method = fsMethod,

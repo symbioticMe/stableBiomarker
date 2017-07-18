@@ -5,7 +5,7 @@
 \title{Read the data from two files with feature table and responses}
 \usage{
 read_data(data.file, response.column, response.file = NULL,
-  match.column = NULL)
+  match.column = NULL, verbose = F)
 }
 \arguments{
 \item{data.file}{the name of the file with the data matrix. It may or may not contain the response}

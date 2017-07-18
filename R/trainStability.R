@@ -18,15 +18,19 @@
 #' @importFrom parallel mclapply detectCores
 train_main <- function(data, response = '.outcome',
                        method = 'rf', fs.method = 'TopN',
-                       fs.config = ifelse(fs.method = 'TopN', list(top.n = 100), NULL),
+                       fs.config = ifelse(fs.method = 'TopN',
+                                          list(top.n = 100), NULL),
                        repeats = 100,
                        resamplingConfig = list(method = 'Fraction', p = .9),
-                       optim.config = optim_config, parallel = F){
+                       optim.config = optim_config,
+                       parallel = F, verbose = F, ...){
 
   #create resampling index
   resampleIndex <- create_resampling(resamplingConfig,
                                      times = repeats,
                                      response = data[[response]])
+
+  if (verbose) {print('Resampling created'); flush.console()}
 
   nr = nrow(data)
   outTrain <- lapply(resampleIndex,
@@ -40,7 +44,8 @@ train_main <- function(data, response = '.outcome',
                                     method = method,
                                     fs.method = fs.method,
                                     fs.config = fs.config,
-                                    optim.config = optim.config))
+                                    optim.config = optim.config,
+                                    verbose = verbose, ...))
   } else {
     mc.cores = detectCores()
     result <- mclapply(1:repeats, function(k)
@@ -50,14 +55,24 @@ train_main <- function(data, response = '.outcome',
                                     method = method,
                                     fs.method = fs.method,
                                     fs.config = fs.config,
-                                    optim.config = optim.config), mc.cores = mc.cores)
+                                    optim.config = optim.config,
+                                    verbose = verbose, ...),
+                        mc.cores = mc.cores)
   }
+
 
   importance = lapply(result, function(res) res$importance)
   performance.train = lapply(result, function(res) res$perf.training)
   performance.test = lapply(result, function(res) res$perf.test)
+  selected.features = lapply(result, function(res) res$selected_features)
+
+  res_names = paste("Rep", gsub(' ','0', format(1:repeats)), sep ='')
+  names(importance) = res_names
+  names(performance.train) =  res_names
+  names(performance.test) = res_names
 
   return(list(importance = importance,
+              selected.features = selected.features,
               performance.test = performance.test,
               performance.train = performance.train,
               repeats = repeats,
@@ -65,7 +80,8 @@ train_main <- function(data, response = '.outcome',
               resamplingConfig = resamplingConfig,
               method = method,
               fs.method = fs.method,
-              optim.config = optim.config))
+              optim.config = optim.config,
+              dots = list(...)))
 }
 
 #' Workhorse function to extract model performance and feature list
@@ -98,7 +114,7 @@ train_main <- function(data, response = '.outcome',
 
 train_with_feature_extraction <- function(data, inTrain, outTrain,
                                           method, fs.method, fs.config,
-                                          response = '.outcome',
+                                          response.column = '.outcome',
                                           optim.config = NULL, ...){
 
 
@@ -107,25 +123,28 @@ train_with_feature_extraction <- function(data, inTrain, outTrain,
   test = data[outTrain, ]
 
   if (is.null(optim.config)){
-    trControl = trainControl(method = 'none')
-    if (method == 'rf'){
+    method_name = ifelse(is.list(method),
+                         deparse(substitute(method)),
+                         method)
+    model.train = if (method_name == 'rf') {
       model.train = train(x = training %>% select(-one_of(response.column)),
                           y = training[[response.column]],
                           method = method,
-                          trControl = trControl,
                           importance = T, ...)
     } else {
       model.train = train(x = training %>% select(-one_of(response.column)),
                           y = training[[response.column]],
-                          method = method,
-                          trControl = trControl,  ...)
+                          method = method,  ...)
     }
 
 
   } else {
     #TODO configure trainControl
     trControl = trainControl(method = optim.config$internal_resampling)
-    model.train = ifelse(method == 'rf',
+    method_name = ifelse(is.list(method),
+                            deparse(substitute(method)),
+                            method)
+    model.train = ifelse(method_name == 'rf',
                          train(x = training %>% select(-one_of(response.column)),
                                y = training[[response.column]],
                                method = method,
@@ -148,9 +167,14 @@ train_with_feature_extraction <- function(data, inTrain, outTrain,
   perf.training = postResample(train.fit.result, training[[response.column]])
   perf.test = postResample(test.fit.result, test[[response.column]])
 
-  importance = varImp(model.train)
+  importance = varImp(model.train)$importance
+
+  #TODO insert the section with feature selection here
+  selected_features = select_features(importance, fs.method, fs.config)
+
   return(list(train = model.train,
               importance = importance,
+              selected_features = selected_features,
               perf.training = perf.training,
               perf.test = perf.test,
               fs.config = fs.config,

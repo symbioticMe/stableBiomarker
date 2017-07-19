@@ -13,10 +13,11 @@
 select_features <- function(importance, fs.method, fs.config, model = NULL, data = NULL){
   #TODO: check how to throw an error for a method not available within the switch
   selected_features = switch(tolower(fs.method),
-                             rfe = rfe(importance, model, data, fs.config),
-                             ga = ga(importance, model, data, fs.config),
-                             filter = filter_fs(data, model, fs.config),
-                             topn = topN(importance, fs.config))
+                             #rfe = rfe(importance, model, data, fs.config),
+                             #ga = ga(importance, model, data, fs.config),
+                             #filter = filter_fs(data, model, fs.config),
+                             topn = topN(importance, fs.config),
+                             none = rownames(importance)[importance[,1] != 0])
   return(selected_features)
 }
 

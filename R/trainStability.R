@@ -22,9 +22,10 @@ train_main <- function(data, response = '.outcome',
                                           list(top.n = 100), NULL),
                        repeats = 100,
                        resamplingConfig = list(method = 'Fraction', p = .9),
-                       optim.config = optim_config,
+                       optim.config = NULL,
                        parallel = F, verbose = F, ...){
 
+  startTime <- proc.time()
   #create resampling index
   resampleIndex <- create_resampling(resamplingConfig,
                                      times = repeats,
@@ -48,6 +49,7 @@ train_main <- function(data, response = '.outcome',
                                     verbose = verbose, ...))
   } else {
     mc.cores = detectCores()
+    if(verbose){print(sprintf('Going parallel, using %s cores...', mc.cores))}
     result <- mclapply(1:repeats, function(k)
       train_with_feature_extraction(data, response.column = response,
                                     inTrain = resampleIndex[[k]],
@@ -60,7 +62,7 @@ train_main <- function(data, response = '.outcome',
                         mc.cores = mc.cores)
   }
 
-
+  if(verbose){print("Training complete, preparing results for output...")}
   importance = lapply(result, function(res) res$importance)
   performance.train = lapply(result, function(res) res$perf.training)
   performance.test = lapply(result, function(res) res$perf.test)
@@ -70,6 +72,8 @@ train_main <- function(data, response = '.outcome',
   names(importance) = res_names
   names(performance.train) =  res_names
   names(performance.test) = res_names
+
+  endTime <- proc.time()
 
   return(list(importance = importance,
               selected.features = selected.features,
@@ -81,6 +85,7 @@ train_main <- function(data, response = '.outcome',
               method = method,
               fs.method = fs.method,
               optim.config = optim.config,
+              times = endTime - startTime,
               dots = list(...)))
 }
 
@@ -115,18 +120,17 @@ train_main <- function(data, response = '.outcome',
 train_with_feature_extraction <- function(data, inTrain, outTrain,
                                           method, fs.method, fs.config,
                                           response.column = '.outcome',
-                                          optim.config = NULL, ...){
+                                          optim.config = NULL,
+                                          verbose = F, ...){
 
-
+  if (verbose){print("Next iteration...")}
   #for each resampling:
   training = data[inTrain, ]
   test = data[outTrain, ]
 
   if (is.null(optim.config)){
-    method_name = ifelse(is.list(method),
-                         deparse(substitute(method)),
-                         method)
-    model.train = if (method_name == 'rf') {
+    method_name = method$label
+    model.train = if (method_name == 'Random Forest') {
       model.train = train(x = training %>% select(-one_of(response.column)),
                           y = training[[response.column]],
                           method = method,
@@ -139,23 +143,31 @@ train_with_feature_extraction <- function(data, inTrain, outTrain,
 
 
   } else {
-    #TODO configure trainControl
-    trControl = trainControl(method = optim.config$internal_resampling)
-    method_name = ifelse(is.list(method),
-                            deparse(substitute(method)),
-                            method)
-    model.train = ifelse(method_name == 'rf',
-                         train(x = training %>% select(-one_of(response.column)),
-                               y = training[[response.column]],
-                               method = method,
-                               trControl = trControl,
-                               importance = T, ...),
-                         train(x = training %>% select(-one_of(response.column)),
-                               y = training[[response.column]],
-                               method = method,
-                               trControl = trControl,  ...))
+    #TODO configure trainControl for cases, other than CV
+    trControl = trainControl(method = optim.config$internal_resampling,
+                             number = ifelse(is.numeric(optim.config$internal_cv_fold),
+                                             optim.config$internal_cv_fold,
+                                             10),
+                             repeats = optim.config$internal_repetitions)
+    method_name = method$label
+    if (method_name == 'Random Forest'){
+      model.train = train(x = training %>% select(-one_of(response.column)),
+                          y = training[[response.column]],
+                          method = method,
+                          trControl = trControl,
+                          metric = optim.config$metric,
+                          importance = T,
+                          ...)
+    } else {
+      model.train = train(x = training %>% select(-one_of(response.column)),
+                          y = training[[response.column]],
+                          method = method,
+                          trControl = trControl,
+                          metric = optim.config$metric,  ...)
+    }
     }
 
+  if(verbose){"Training of a model complete, fitting the resulting model to train & test data"}
   fitted.model = model.train$finalModel
   model = model.train$modelInfo
   train.fit.result = model$predict(fitted.model,
@@ -167,6 +179,7 @@ train_with_feature_extraction <- function(data, inTrain, outTrain,
   perf.training = postResample(train.fit.result, training[[response.column]])
   perf.test = postResample(test.fit.result, test[[response.column]])
 
+  if(verbose){print("extracting importance...")}
   importance = varImp(model.train)$importance
 
   #TODO insert the section with feature selection here

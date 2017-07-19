@@ -5,7 +5,8 @@
 \title{Workhorse function to extract model performance and feature list}
 \usage{
 train_with_feature_extraction(data, inTrain, outTrain, method, fs.method,
-  fs.config, response.column = ".outcome", optim.config = NULL, ...)
+  fs.config, response.column = ".outcome", optim.config = NULL,
+  verbose = F, ...)
 }
 \arguments{
 \item{data}{data frame or data table used to build the model}

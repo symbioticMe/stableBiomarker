@@ -2,7 +2,7 @@ Package: stableBiomarker
 Type: Package
 Title: Pipeline To Select Biomarker Signature from Omics Data (Title Case)
 Version: 0.1.0
-Authors@R: person("Jelena", "Chuklina", email = "chuklina.jelena@gmail.com", role = c("aut","cre"))
+Author: Jelena Chuklina <chuklina.jelena@gmail.com>
 Maintainer: The package maintainer <chuklina.jelena@gmail.com>
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.

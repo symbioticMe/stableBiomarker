@@ -7,7 +7,7 @@
 train_main(data, response = ".outcome", method = "rf", fs.method = "TopN",
   fs.config = ifelse(fs.method = "TopN", list(top.n = 100), NULL),
   repeats = 100, resamplingConfig = list(method = "Fraction", p = 0.9),
-  optim.config = optim_config, parallel = F, ...)
+  optim.config = optim_config, parallel = F, verbose = F, ...)
 }
 \arguments{
 \item{data}{an object where samples are in rows and features are in columns

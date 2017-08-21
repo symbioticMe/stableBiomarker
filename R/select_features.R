@@ -35,3 +35,19 @@ topN <- function(importance, fs.config){
   selected_features = importance$features[1:topN]
   return(selected_features)
 }
+
+#' Title
+#'
+#' @param x
+#' @param y
+#' @param fs.config
+#'
+#' @return
+#' @export
+#'
+#' @import Hmisc
+correlation <- function(x, y, fs.config) {
+  corr_significance = rcorr(rbind(y, x))$P[1,2:(1+ncol(x))]
+  selected_features = names(x)[corr_significance < fs.config$p_value]
+  return(selected_features)
+}

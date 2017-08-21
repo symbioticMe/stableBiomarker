@@ -12,7 +12,7 @@
 #' @importFrom caret createDataPartition createFolds createResample createMultiFolds
 #' @export
 #'
-create_resampling <- function(resamplingConfig, times, response){
+create_resampling <- function(response, resamplingConfig, times){
   if (!is.list(resamplingConfig)){
     stop('Resampling configuration is stored in a list!')
   }
@@ -20,15 +20,18 @@ create_resampling <- function(resamplingConfig, times, response){
   resamplingMethod = resamplingConfig$resampMethod
   resamplingConfig = resamplingConfig$resampConfig
 
-  caret_resamp_methods = c("boot", "cv", "LOOCV", "repeatedcv")
+  caret_resamp_methods = c("boot", "cv", "test", "repeatedcv", "lgocv", "loocv")
 
   resampleIndex = switch(tolower(resamplingMethod),
-                         fraction = createDataPartition(response,
-                                                        p = resamplingConfig$p,
-                                                        times = times),
-                         repeatedcv = createMultiFolds(response, k = k, times = times),
+                         test = createDataPartition(response, 1, resamplingConfig$p),
+                         lgocv = createDataPartition(response,
+                                                     p = resamplingConfig$p,
+                                                     times = times),
+                         repeatedcv = createMultiFolds(response, k = resamplingConfig$k,
+                                                       times = times),
                          cv = createFolds(response, k = k),
-                         loocv = createFolds(response, length(response), returnTrain = TRUE),
+                         loocv = createFolds(response, length(response),
+                                             returnTrain = TRUE),
                          boot = createResample(response, times = times))
   return(resampleIndex)
 }

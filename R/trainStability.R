@@ -16,20 +16,22 @@
 #'
 #' @export
 #' @importFrom parallel mclapply detectCores
+#TODO: substituted resampling method Fraction for LGOCV
 train_main <- function(data, response = '.outcome',
                        method = 'rf', fs.method = 'TopN',
                        fs.config = ifelse(fs.method = 'TopN',
                                           list(top.n = 100), NULL),
                        repeats = 100,
-                       resamplingConfig = list(method = 'Fraction', p = .9),
+                       resamplingConfig = list(resampMethod = 'LGOCV', 
+                                               resampConfig = list(p = .9), repetitions = 10),
                        optim.config = NULL,
                        parallel = F, verbose = F, ...){
 
   startTime <- proc.time()
   #create resampling index
-  resampleIndex <- create_resampling(resamplingConfig,
-                                     times = repeats,
-                                     response = data[[response]])
+  resampleIndex <- create_resampling(response = data[[response]],
+                                     resamplingConfig$resampConfig,
+                                     times = repeats)
 
   if (verbose) {print('Resampling created'); flush.console()}
 
@@ -144,6 +146,10 @@ train_with_feature_extraction <- function(data, inTrain, outTrain,
 
   } else {
     #TODO configure trainControl for cases, other than CV
+    optim.config.methods = c("boot", "cv", "LOOCV", "LGOCV", "repeatedcv", "test")
+    if (!(optim.config$internal_resampling %in% optim.config.methods)){
+      stop(paste(optim.config$internal_resampling, "method is not defined in caret built-in resampling methods"))
+    }
     trControl = trainControl(method = optim.config$internal_resampling,
                              number = ifelse(is.numeric(optim.config$internal_cv_fold),
                                              optim.config$internal_cv_fold,

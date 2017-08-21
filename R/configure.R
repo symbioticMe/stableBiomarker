@@ -20,6 +20,7 @@ configurePipeline <- function(configFile, data, response.column){
   method_config = method_config$method_config
 
   #TODO: make config_param method substraction one by one
+  #why do we need config params at all?
   config_params = setdiff(config_params, method)
 
   fs_config = check_fs_config(fsMethod = config$fs_method,
@@ -145,19 +146,46 @@ check_fs_config <- function(fsMethod, config, data){
 #' @return list of resampling configuration parameters containing:
 #' \item{resampMethod}{method of resampling, such as \code{'CV'}, \code{'bootstrap'}}
 check_resamp_config <- function(config){
-  resampConfig = list()
-  resampMethod = config$resampling
-  repeats = as.numeric(config$repetitions)
-  #TODO add check if resampling is in the list and if not, add default
-  resampConfig <- switch(resampMethod,
-                         CV = list(k = as.numeric(config$CV_folds)),
-                         Fraction  = list(p = as.numeric(config$fraction)),
-                         boot = NULL,
-                         LOOCV = NULL)
+  resampMethod = tolower(config$resampling)
+
+  resampling.methods = tolower(c("boot", "cv", "LOOCV", "LGOCV", "repeatedcv", "test"))
+  if (!(resampMethod %in% resampling.methods)){
+    stop(paste(resampMethod, "method is not defined in caret built-in resampling methods"))
+  }
+  resamp.parameters = c('cv_folds', 'repetitions', 'fraction')
+  if (sum(tolower(names(config)) %in% resamp.parameters) == 0){
+    warning('none of resampling parameters specified, using default')
+    resampMethod = 'lgocv'
+    config$fraction = .7
+    config$repetitions = 50
+  } else {
+    if ('cv_folds' %in% names(config) && 'fraction' %in% names(config)){
+      warning('both CV and fraction partitioning is not possible, using default for the method...')
+      if (grepl('cv', resampMethod) && resampMethod != 'lgocv'){ config$fraction = NULL}
+      else {config$cv_folds = NULL}
+    }
+    if (resampMethod == 'cv' && 'repetitions' %in% names(config)){
+      resampMethod = 'repeatedcv'}
+
+    resampConfig = list()
+
+    repetitions = as.numeric(config$repetitions)
+
+  }
+
+  resampConfig <- switch(tolower(resampMethod),
+                         cv         = list(k = as.numeric(config$cv_folds)),
+                         repeatedcv = list(k = as.numeric(number = config$cv_folds),
+                                                          repeats = repetitions),
+                         test       = list(p = as.numeric(config$fraction)),
+                         lgocv      = list(p = as.numeric(config$fraction),
+                                           number = repetitions),
+                         boot       = list(number = repetitions),
+                         loocv      = NULL)
 
   return(list(resampMethod = resampMethod,
               resampConfig = resampConfig,
-              repeats = repeats))
+              repetitions = repetitions))
 }
 
 #' check optimization configuration
@@ -205,15 +233,27 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
                  optimization_criterion = 'performance',
                  metric = ifelse(is.factor(data[[response.column]]),
                                  'Accuracy','Rsquared_spearman'),
-                 internal_resampling = 'CV',
+                 internal_resampling = 'repeatedcv',
                  internal_repetitions = 10
           )
           return(value)
         }
-        numeric_configurations = c('grid_resolution', 'internal_repetitions')
+
+        internal_resampling_params = c('internal_repetitions', 'internal_fraction', 'internal_cv_folds')
+        numeric_configurations = c('grid_resolution', internal_resampling_params)
+
         optim = list()
+        if (sum(grepl('^internal_(.)', names(config))) != 0){
+          optim_resampling_config = config[grepl('^internal_(.)', names(config))]
+          names(optim_resampling_config) = gsub('^internal_(.)', '\\1', names(optim_resampling_config))
+          optim_resampling = check_resamp_config(optim_resampling_config)
+          optim = optim_resampling
+        } else {
+          warning('none of the internal resampling parameters specified, using default')
+          optim = check_resamp_config(config = NULL)
+          }
         for (name in minNames){
-          if (name %in% names(config)){
+          if (name %in% names(config) && !(name %in% internal_resampling_params)){
             optim[[name]] = config[[name]]
             if (name %in% numeric_configurations) {
               if(is(tryCatch(as.numeric(config[[name]],

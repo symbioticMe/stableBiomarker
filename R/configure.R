@@ -31,12 +31,19 @@ configurePipeline <- function(configFile, data, response.column){
   optim_config = check_optimization_config(config = config,
                                            data = data,
                                            response.column = response.column)
+  performance_metric = check_performance_metric(config, data, response.column)
+  stability_metric = check_stability_metric(config)
+  aggregation_method = check_aggregation_method(config)
   return(list(fs_config = fs_config,
               optim_config = optim_config,
               resamp_config = resamp_config,
               method = method,
               method_config = method_config,
-              method_name = method_name))
+              method_name = method_name,
+              performance_metric = performance_metric,
+              stability_metric = stability_metric,
+              aggregation_method = aggregation_method
+                ))
 }
 
 #' Read and parse configuration file
@@ -59,7 +66,7 @@ read_config <- function(fileName){
   }
 
   names(config) <- sapply(config, function(entry) tolower(entry[1]))
-  config <- lapply(config, function(entry) entry[2])
+  config <- lapply(config, function(entry) trimws(entry[2]))
   close(fc)
   return(config)
 }
@@ -119,6 +126,7 @@ check_fs_config <- function(fsMethod, config, data){
   #make uniform fsMethod vs fs_method
   fs_config = list()
   if (is.null(fsMethod)){
+    warning('feature selection method missing, opting for the default')
     fsMethod = 'TopN'
     fs_config = list(topN = min(100, round(0.1 * ncol(data))))
   } else if (fsMethod == 'none') {
@@ -149,39 +157,52 @@ check_resamp_config <- function(config){
   resampMethod = tolower(config$resampling)
 
   resampling.methods = tolower(c("boot", "cv", "LOOCV", "LGOCV", "repeatedcv", "test"))
-  if (!(resampMethod %in% resampling.methods)){
+  resamp.parameters = c('cv_folds', 'repetitions', 'fraction')
+  if (!(resampMethod %in% resampling.methods) && !is.null(resampMethod)){
     stop(paste(resampMethod, "method is not defined in caret built-in resampling methods"))
   }
-  resamp.parameters = c('cv_folds', 'repetitions', 'fraction')
-  if (sum(tolower(names(config)) %in% resamp.parameters) == 0){
-    warning('none of resampling parameters specified, using default')
+  else if (is.null(resampMethod) && sum(tolower(names(config)) %in% resamp.parameters) == 0){
+    warning('resampling method or resampling parameters not specified, using default (LGOCV)')
     resampMethod = 'lgocv'
     config$fraction = .7
     config$repetitions = 50
   } else {
     if ('cv_folds' %in% names(config) && 'fraction' %in% names(config)){
       warning('both CV and fraction partitioning is not possible, using default for the method...')
-      if (grepl('cv', resampMethod) && resampMethod != 'lgocv'){ config$fraction = NULL}
+      if (grepl('cv', resampMethod) && resampMethod != 'lgocv'){config$fraction = NULL}
       else {config$cv_folds = NULL}
     }
     if (resampMethod == 'cv' && 'repetitions' %in% names(config)){
       resampMethod = 'repeatedcv'}
 
     resampConfig = list()
-
+    
+    for (name in config){
+      if (name %in% resamp.parameters) {
+        if(is(tryCatch(as.numeric(config[[name]],
+                                  warning = function(w) w)),
+              'warning')){
+          warning(paste(name, 'is not numeric, going to the default'))
+          config[[name]] = assign_default(name)
+        } else {
+          config[[name]] = as.numeric(config[[name]])
+        }
+      }
+    }
+    
     repetitions = as.numeric(config$repetitions)
 
   }
-
+  
   resampConfig <- switch(tolower(resampMethod),
                          cv         = list(k = as.numeric(config$cv_folds)),
-                         repeatedcv = list(k = as.numeric(number = config$cv_folds),
-                                                          repeats = repetitions),
-                         test       = list(p = as.numeric(config$fraction)),
-                         lgocv      = list(p = as.numeric(config$fraction),
-                                           number = repetitions),
-                         boot       = list(number = repetitions),
-                         loocv      = NULL)
+                        repeatedcv = list(k = as.numeric(number = config$cv_folds),
+                                          repeats = repetitions),
+                        test       = list(p = as.numeric(config$fraction)),
+                        lgocv      = list(p = as.numeric(config$fraction),
+                                          number = repetitions),
+                        boot       = list(number = repetitions),
+                        loocv      = NULL)
 
   return(list(resampMethod = resampMethod,
               resampConfig = resampConfig,
@@ -227,21 +248,36 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
         #check if required items are provided (see how it's done in getModelInfo of caret)
         minNames <- c("grid_resolution", "optimization_criterion", "metric",
                       "internal_resampling", "internal_repetitions")
-        assign_default <- function(name, optim, data, response.column){
-          value <- switch(name,
-                 grid_resolution = 3,
-                 optimization_criterion = 'performance',
-                 metric = ifelse(is.factor(data[[response.column]]),
-                                 'Accuracy','Rsquared_spearman'),
-                 internal_resampling = 'repeatedcv',
-                 internal_repetitions = 10
-          )
-          return(value)
-        }
 
         internal_resampling_params = c('internal_repetitions', 'internal_fraction', 'internal_cv_folds')
-        numeric_configurations = c('grid_resolution', internal_resampling_params)
-
+        
+        check_grid_resolution <- function(config){
+          grid_resolution = config$grid_resolution
+          if (is.null(grid_resolution) || is(tryCatch(as.numeric(grid_resolution,
+                                          warning = function(w) w)), 'warning')){
+              warning(paste(grid_resolution, 'is not numeric or missing, going to the default'))
+              grid_resolution = assign_default(name, data)
+            }
+          return(grid_resolution)
+        }
+        
+        check_opt_criterion <- function(config){
+          opt_criteria = c('performance', 'stability', 'RPT')
+          opt_criterion = config$optimization_criterion
+          if (is.null(opt_criterion)) {opt_criterion = 'performance'}
+          else if (!(opt_criterion %in% opt_criteria)) {
+            warning(paste(opt_criterion, 'is invalid optimization criterion', opt_criterion))
+          }
+          return(opt_criterion)
+        }
+        
+        check_opt_metric <- function(config){
+          metric = switch(config$metric,
+                          performance = check_performance_metric(list(performance_metric = config$metric)),
+                          stability = check_stability_metric(list(stability_metric = config$metric)),
+                          RPT = 'RPT')
+        }
+        
         optim = list()
         if (sum(grepl('^internal_(.)', names(config))) != 0){
           optim_resampling_config = config[grepl('^internal_(.)', names(config))]
@@ -252,19 +288,15 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
           warning('none of the internal resampling parameters specified, using default')
           optim = check_resamp_config(config = NULL)
           }
-        for (name in minNames){
-          if (name %in% names(config) && !(name %in% internal_resampling_params)){
+        for (name in setdiff(minNames, names(config)[grepl('^internal_(.)', names(config))])){
+          optim[[name]] = switch(name, 
+                                 grid_resolution = check_grid_resolution(config),
+                                 optimization_criterion = check_opt_criterion(config),
+                                 metric = check_opt_metric(config))
+          
+          if (name %in% names(config)){
             optim[[name]] = config[[name]]
-            if (name %in% numeric_configurations) {
-              if(is(tryCatch(as.numeric(config[[name]],
-                                        warning = function(w) w)),
-                    'warning')){
-                warning(paste(name, 'is not numeric, going to the default'))
-                optim[[name]] = assign_default(name, data)
-              } else {
-                optim[[name]] = as.numeric(optim[[name]])
-              }
-            }
+
           } else {
             optim[[name]] = assign_default(name, data)
           }
@@ -276,4 +308,78 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
     }
   }
   return(optim_config)
+}
+
+check_stability_metric <- function(config){
+  stability_metric <- config$stability_metric
+  stability_metrics = c('ALL','jaccard', 'kuncheva', 'sorensen', 'ochiai', 'POG', 'POGR',
+                        'multi',
+                        'correlation_pearson',
+                        'correlation_spearman')
+  if (is.null(stability_metric) || !(stability_metric %in% stability_metrics)){
+    warning('stability metric not specified or missing in the list of pre-defined metric, using the default')
+    stability_metric = assign_default('stability_metric')
+  }
+  return(stability_metric)
+}
+
+#' Title
+#'
+#' @param config 
+#' @param data 
+#' @param response.column 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+check_performance_metric <- function(config, data, response.column){
+  performance_metric = config$performance_metric
+  classification_metrics =  c('Accuracy')
+  regression_metrics = c('Rsquared', 'Rsquared_spearman', 
+                         'Rsquared_pearson','pseudo_Rsquared')
+  recognized_perf_metrics = c(classification_metrics, regression_metrics)
+  if (is.null(performance_metric)){
+    warning('performance metric missing, opting for default')
+    performance_metric = assign_default('performance_metric', data, response.column)
+  } else if (performance_metric != 'ALL'){
+    if (!(performance_metric %in% recognized_perf_metrics)){
+      warning(paste(performance_metric, 'performance metric is not recognized, using the default'))
+    } else {
+      task_type = check_task_type(data, response.column)
+      compatible_metrics = ifelse(task_type == 'classification', 
+             classification_metrics,
+             regression_metrics)
+      if (!(performance_metric %in% compatible_metrics)){
+        stop(sprintf(' %s is not compatible with %s task', performance_metric, task_type))
+      }
+    }
+  }
+  return(performance_metric)
+}
+
+check_aggregation_method <- function(config){
+  aggregation_method = config$aggregation_method
+  aggregation_methods = c('CAL')
+  if (!(aggregation_method %in% aggregation_methods)){
+    stop(sprintf('%s not in pre-defined aggregation methods', aggregation_method))
+  }
+  return(aggregation_method)
+}
+
+assign_default <- function(name, data = NULL, response.column = NULL){
+  value <- switch(name,
+                  grid_resolution = 3,
+                  optimization_criterion = 'performance',
+                  metric = ifelse(is.factor(data[[response.column]]),
+                                  'Accuracy','Rsquared_spearman'),
+                  internal_resampling = 'repeatedcv',
+                  internal_repetitions = 10,
+                  repetitions = 50,
+                  resampling = 'LGOCV',
+                  fraction = .8,
+                  performance_metric = 'ALL',
+                  stability_metric = 'jaccard',
+                  aggregation_method = 'CAL')
+  return(value)
 }

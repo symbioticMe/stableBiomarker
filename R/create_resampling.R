@@ -25,13 +25,13 @@ create_resampling <- function(response, resamplingConfig, times){
   resampleIndex = switch(tolower(resamplingMethod),
                          test = createDataPartition(response, 1, resamplingConfig$p),
                          lgocv = createDataPartition(response,
-                                                     p = resamplingConfig$p,
-                                                     times = times),
+                                                     times = resamplingConfig$number,
+                                                     p = resamplingConfig$p),
                          repeatedcv = createMultiFolds(response, k = resamplingConfig$k,
-                                                       times = times),
-                         cv = createFolds(response, k = k),
+                                                       times = resamplingConfig$number),
+                         cv = createFolds(response, k = resamplingConfig$k),
                          loocv = createFolds(response, length(response),
                                              returnTrain = TRUE),
-                         boot = createResample(response, times = times))
+                         boot = createResample(response, times = resamplingConfig$number))
   return(resampleIndex)
 }

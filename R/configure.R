@@ -8,14 +8,27 @@
 #' \item{resamp_config}{resampling configuration list}
 #' \item{optimization_config}{optimization configuration list}
 #' @export
-configurePipeline <- function(configFile, data, response.column){
-  config = read_config(configFile)
+configurePipeline <- function(data, response.column, configFile = NULL, config = NULL){
+  if (!is.null(configFile) & !is.null(config)){
+    stop('either the configuration file or configuration object alone should be identified!')
+  }
+  else if(!is.null(configFile)) {
+    config = read_config(configFile)
+  }
+  
 
   config_params = names(config)
   #TODO: write the check for the availability of machine learning methods
   #(see train.default of caret)
-  method_name = config$method
-  method_config = check_method_config(method_name, config)
+  if (is.list(config$method) && 'method_name' %in% names(config)){
+    method = config$method
+    method_config = check_method_config(config, method = method)
+  } else {
+    method_name = config$method
+    method_config = check_method_config(config,method_name)
+  }
+  
+  method_name = method_config$method_name
   method = method_config$method
   method_config = method_config$method_config
 
@@ -80,15 +93,21 @@ read_config <- function(fileName){
 #' \item{method}{method, turned into \code{list}}
 #' \item{method_config}{\code{list} of method parameters}
 #' @importFrom caret getModelInfo
-check_method_config <- function(method_name, config){
-  method = try(getModelInfo(method_name, regex = T), silent = T)
-  if(class(method) == 'try-error'){
-    method = try(get(method_name), silent = T)
-    if (class(method) == 'try-error' | !is.list(method)){
-      stop("Method should be defined in caret package or as a list")
-    }
+check_method_config <- function(config, method_name = NULL, method = NULL){
+  if (is.null(method) || !is.list(method)) {
+    method = try(getModelInfo(method_name, regex = T), silent = T)
   } else {
-    method = getModelInfo(method_name, regex = F)[[1]]
+    if(class(method) == 'try-error'){
+      method = try(get(method_name), silent = T)
+      if (class(method) == 'try-error' | !is.list(method)){
+        stop("Method should be defined in caret package or as a list")
+      }
+    } else if (!is.null(method_name)){
+      method = getModelInfo(method_name, regex = F)[[1]]
+    } else {
+      method = getModelInfo('rf', regex = F)[[1]]
+      method_name = 'rf'
+    }
   }
 
   parameters = as.character(method$parameters$parameter)
@@ -154,14 +173,16 @@ check_fs_config <- function(fsMethod, config, data){
 #' @return list of resampling configuration parameters containing:
 #' \item{resampMethod}{method of resampling, such as \code{'CV'}, \code{'bootstrap'}}
 check_resamp_config <- function(config){
-  resampMethod = tolower(config$resampling)
+  resampMethod = if (!is.null(config$resampling)){
+    tolower(config$resampling)
+  } else   {NULL}
 
   resampling.methods = tolower(c("boot", "cv", "LOOCV", "LGOCV", "repeatedcv", "test"))
   resamp.parameters = c('cv_folds', 'repetitions', 'fraction')
-  if (!(resampMethod %in% resampling.methods) && !is.null(resampMethod)){
+  if (!is.null(resampMethod) && !(resampMethod %in% resampling.methods)){
     stop(paste(resampMethod, "method is not defined in caret built-in resampling methods"))
   }
-  else if (is.null(resampMethod) && sum(tolower(names(config)) %in% resamp.parameters) == 0){
+  else if (is.null(resampMethod) && (is.null(names(config)) || sum(tolower(names(config)) %in% resamp.parameters) == 0)){
     warning('resampling method or resampling parameters not specified, using default (LGOCV)')
     resampMethod = 'lgocv'
     config$fraction = .7
@@ -177,7 +198,7 @@ check_resamp_config <- function(config){
 
     resampConfig = list()
     
-    for (name in config){
+    for (name in names(config)){
       if (name %in% resamp.parameters) {
         if(is(tryCatch(as.numeric(config[[name]],
                                   warning = function(w) w)),
@@ -189,15 +210,13 @@ check_resamp_config <- function(config){
         }
       }
     }
-    
-    repetitions = as.numeric(config$repetitions)
-
   }
+  repetitions = as.numeric(config$repetitions)
   
   resampConfig <- switch(tolower(resampMethod),
                          cv         = list(k = as.numeric(config$cv_folds)),
-                        repeatedcv = list(k = as.numeric(number = config$cv_folds),
-                                          repeats = repetitions),
+                        repeatedcv = list(k = as.numeric(config$cv_folds),
+                                          number = repetitions),
                         test       = list(p = as.numeric(config$fraction)),
                         lgocv      = list(p = as.numeric(config$fraction),
                                           number = repetitions),
@@ -234,7 +253,8 @@ check_resamp_config <- function(config){
 #' the same way as for external resampling}
 check_optimization_config <- function(config, data, response.column = '.outcome'){
   if (!('optimize' %in% names(config))){
-    warning(paste('optimization is required for this method'), config$method)
+    warning(paste('assuming optimization is not required for this method'), config$method_name)
+    optim_config = NULL
     #TODO: check which methods require optimization
     }
   else {
@@ -249,8 +269,6 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
         minNames <- c("grid_resolution", "optimization_criterion", "metric",
                       "internal_resampling", "internal_repetitions")
 
-        internal_resampling_params = c('internal_repetitions', 'internal_fraction', 'internal_cv_folds')
-        
         check_grid_resolution <- function(config){
           grid_resolution = config$grid_resolution
           if (is.null(grid_resolution) || 
@@ -258,7 +276,7 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
                  'warning')) {
               warning(paste(grid_resolution, 
                             'is not numeric or missing, going to the default'))
-              grid_resolution = assign_default(name, data)
+              grid_resolution = assign_default('grid_resolution', data)
           } else {
               grid_resolution = as.numeric(grid_resolution)
             }
@@ -275,11 +293,14 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
           return(opt_criterion)
         }
         
-        check_opt_metric <- function(config){
-          metric = switch(config$metric,
-                          performance = check_performance_metric(list(performance_metric = config$metric)),
+        check_opt_metric <- function(config, data, response.column){
+          metric = switch(config$optimization_criterion,
+                          performance = check_performance_metric(list(performance_metric = config$metric), 
+                                                                 data = data, 
+                                                                 response.column = response.column),
                           stability = check_stability_metric(list(stability_metric = config$metric)),
                           RPT = 'RPT')
+          return(metric)
         }
         
         optim = list()
@@ -293,16 +314,15 @@ check_optimization_config <- function(config, data, response.column = '.outcome'
           optim = check_resamp_config(config = NULL)
           }
         for (name in setdiff(minNames, names(config)[grepl('^internal_(.)', names(config))])){
-          optim[[name]] = switch(name, 
+          if (name %in% names(config)){
+            optim[[name]] = switch(name, 
                                  grid_resolution = check_grid_resolution(config),
                                  optimization_criterion = check_opt_criterion(config),
-                                 metric = check_opt_metric(config))
-          
-          if (name %in% names(config)){
-            optim[[name]] = config[[name]]
+                                 metric = check_opt_metric(config, data = data, 
+                                                           response.column = response.column))
 
           } else {
-            optim[[name]] = assign_default(name, data)
+            optim[[name]] = assign_default(name, data, response.column)
           }
         }
         optim_config = optim
@@ -339,21 +359,22 @@ check_stability_metric <- function(config){
 #' @examples
 check_performance_metric <- function(config, data, response.column){
   performance_metric = config$performance_metric
-  classification_metrics =  c('Accuracy')
+  classification_metrics =  c('Accuracy', 'Kappa')
   regression_metrics = c('Rsquared', 'Rsquared_spearman', 
-                         'Rsquared_pearson','pseudo_Rsquared')
+                         'Rsquared_pearson','pseudo_Rsquared','RMSE')
   recognized_perf_metrics = c(classification_metrics, regression_metrics)
   if (is.null(performance_metric)){
     warning('performance metric missing, opting for default')
-    performance_metric = assign_default('performance_metric', data, response.column)
+      performance_metric = assign_default('performance_metric', data, response.column)
   } else if (performance_metric != 'ALL'){
     if (!(performance_metric %in% recognized_perf_metrics)){
       warning(paste(performance_metric, 'performance metric is not recognized, using the default'))
+      performance_metric = assign_default('performance_metric', data, response.column)
     } else {
       task_type = check_task_type(data, response.column)
-      compatible_metrics = ifelse(task_type == 'classification', 
-             classification_metrics,
-             regression_metrics)
+      compatible_metrics = switch(task_type,
+                                  classification = classification_metrics,
+                                  regression     = regression_metrics)
       if (!(performance_metric %in% compatible_metrics)){
         stop(sprintf(' %s is not compatible with %s task', performance_metric, task_type))
       }
@@ -365,8 +386,9 @@ check_performance_metric <- function(config, data, response.column){
 check_aggregation_method <- function(config){
   aggregation_method = config$aggregation_method
   aggregation_methods = c('CAL')
-  if (!(aggregation_method %in% aggregation_methods)){
-    stop(sprintf('%s not in pre-defined aggregation methods', aggregation_method))
+  if (is.null(aggregation_method) || !(aggregation_method %in% aggregation_methods)){
+    warning(paste(aggregation_method, ' not in pre-defined aggregation methods, using default'))
+    aggregation_method = assign_default('aggregation_method')
   }
   return(aggregation_method)
 }

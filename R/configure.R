@@ -2,6 +2,8 @@
 #'
 #' @param configFile name of the file with configuration
 #' @param data data.frame with features and response
+#' @param response.column 
+#' @param config 
 #'
 #' @return list containing:
 #' \item{fs_config}{feature selection configuration list}
@@ -47,12 +49,13 @@ configurePipeline <- function(data, response.column, configFile = NULL, config =
   performance_metric = check_performance_metric(config, data, response.column)
   stability_metric = check_stability_metric(config)
   aggregation_method = check_aggregation_method(config)
-  return(list(fs_config = fs_config,
-              optim_config = optim_config,
-              resamp_config = resamp_config,
-              method = method,
+  return(list(method = method,
               method_config = method_config,
               method_name = method_name,
+              fs_method = fs_config$fs_method,
+              fs_config = fs_config$fs_config,
+              resamp_config = resamp_config,
+              optim_config = optim_config,
               performance_metric = performance_metric,
               stability_metric = stability_metric,
               aggregation_method = aggregation_method
@@ -95,7 +98,7 @@ read_config <- function(fileName){
 #' @importFrom caret getModelInfo
 check_method_config <- function(config, method_name = NULL, method = NULL){
   if (is.null(method) || !is.list(method)) {
-    method = try(getModelInfo(method_name, regex = T), silent = T)
+    method = try(getModelInfo(method_name, regex = F)[[1]], silent = T)
   } else {
     if(class(method) == 'try-error'){
       method = try(get(method_name), silent = T)

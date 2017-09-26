@@ -4,8 +4,10 @@ Title: Pipeline To Select Biomarker Signature from Omics Data (Title Case)
 Version: 0.1.0
 Author: Jelena Chuklina <chuklina.jelena@gmail.com>
 Maintainer: The package maintainer <chuklina.jelena@gmail.com>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Description: The package provides a framework for selection of features with
+    a variety of feature selection methods (that can loosely be split into
+    embedded, wrapper and filter approaches) and estimates the stability 
+    of the selected feature set by estimating the stability.
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true

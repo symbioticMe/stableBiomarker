@@ -30,28 +30,35 @@ check_task_type <- function(data, response.column){
 #'
 #' @examples
 check_fs_type <- function(model.method, model.config, fs.method, fs.config){
-  embedded_modelling_methods = c('elastic net')
-  filter_methods = c('topn','correlation', 'correlation_spearman','correlation_pearson',
-                     'GAM','ANOVA')
-  wrapper_methods = c('RFE', 'GA', 'SA')
+  embedded_methods = c('elastic net')
+  filter_methods = tolower(c('TopN','correlation', 'correlation_spearman','correlation_pearson',
+                     'GAM','ANOVA'))
+  wrapper_methods = tolower(c('RFE', 'GA', 'SA'))
   fs.methods = union(filter_methods, wrapper_methods)
-  if (model.method %in% c('glmnet')){
+  
+  fs_type = NULL
+  method_name = ifelse(class(model.method) != 'list', model.method, model.method$label)
+  if (method_name %in% c('glmnet')){
     if ('alpha' %in% names(model.config)){
       model_type = "elastic net"
     }
     else {model_type = 'ridge regression'}
   }
-  if (model_type %in% embedded_modelling_methods) {
+  if (model_type %in% embedded_methods) {
     fs_type = 'embedded'
-    return(fs_type)
   } else if (is.null(fs.method)){
     stop(paste("For this method (",model.method,") feature selection method needs to be defined"))
   } else if (!(fs.method %in% fs.methods)){
     stop(paste(fs.method, "is not defined with this package"))
   }
-  if (fs.method %in% filter_methods) {return("filter")}
-  if (fs.method %in% wrapper_methods) {return("wrapper")}
-  fs_type = c('embedded', 'filter', 'wrapper')
+  if (tolower(fs.method) %in% filter_methods) {fs_type = "filter"}
+  if (tolower(fs.method) %in% wrapper_methods) {fs_type = "wrapper"}
+  
+  fs_types = c('embedded', 'filter', 'wrapper')
+  
+  if(!(fs_type %in% fs_types)) {
+    stop("Feature selection type is not defined!")
+  }
   
   return(fs_type)
 }
@@ -63,35 +70,46 @@ check_fs_type <- function(model.method, model.config, fs.method, fs.config){
 #' @return trControl
 #' @importFrom caret trainControl
 #'
-#' @examples
 turnOptimConfigToTrainControl <- function(optim.config){
   trControl = switch(tolower(optim.config$resampMethod),
-                     boot =       trainControl(method = optim.config$resampMethod,
+                     boot =       trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod,
                                                number = ifelse(is.numeric(optim.config$resampConfig$number),
                                                                optim.config$resampConfig$number,
-                                                               10)),
-                     cv =         trainControl(method = optim.config$resampMethod,
+                                                               10), 
+                                               allowParallel = F),
+                     cv =         trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod,
                                                number = ifelse(is.numeric(optim.config$resampConfig$k),
                                                                optim.config$resampConfig$k,
                                                                10),
-                                               repeats = optim.config$internal_repetitions),
-                     loocv =      trainControl(method = optim.config$resampMethod),
-                     lgocv =      trainControl(method = optim.config$resampMethod,
+                                               repeats = optim.config$internal_repetitions, 
+                                               allowParallel = F),
+                     loocv =      trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod, 
+                                               allowParallel = F),
+                     lgocv =      trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod,
                                                number = ifelse(is.numeric(optim.config$resampConfig$number),
                                                                optim.config$resampConfig$number,
                                                                10),
-                                               p = optim.config$resampConfig$p),
-                     repeatedcv = trainControl(method = optim.config$resampMethod,
+                                               p = optim.config$resampConfig$p, 
+                                               allowParallel = F),
+                     repeatedcv = trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod,
                                                number = ifelse(is.numeric(optim.config$resampConfig$k),
                                                                optim.config$resampConfig$k,
                                                                10),
-                                               repeats = optim.config$resampConfig$number),
-                     test =       trainControl(method = optim.config$resampMethod,
-                                               p = optim.config$resampConfig$p))
+                                               repeats = optim.config$resampConfig$number, 
+                                               allowParallel = F),
+                     test =       trainControl(returnResamp = "all", savePredictions = T,
+                                               method = optim.config$resampMethod,
+                                               p = optim.config$resampConfig$p, 
+                                               allowParallel = F))
   trControl
 }
 
-#' Title
+#' Define the parameter optimization grid
 #'
 #' @param method_config 
 #' @param optim_config 

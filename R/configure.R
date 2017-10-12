@@ -218,13 +218,13 @@ check_resamp_config <- function(config){
   
   resampConfig <- switch(tolower(resampMethod),
                          cv         = list(k = as.numeric(config$cv_folds)),
-                        repeatedcv = list(k = as.numeric(config$cv_folds),
-                                          number = repetitions),
-                        test       = list(p = as.numeric(config$fraction)),
-                        lgocv      = list(p = as.numeric(config$fraction),
-                                          number = repetitions),
-                        boot       = list(number = repetitions),
-                        loocv      = NULL)
+                         repeatedcv = list(k = as.numeric(config$cv_folds),
+                                           number = repetitions),
+                         test       = list(p = as.numeric(config$fraction)),
+                         lgocv      = list(p = as.numeric(config$fraction),
+                                           number = repetitions),
+                         boot       = list(number = repetitions),
+                         loocv      = NULL)
 
   return(list(resampMethod = resampMethod,
               resampConfig = resampConfig,

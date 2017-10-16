@@ -1,18 +1,3 @@
-#' Select top N best features
-#'
-#' @param importance
-#' @param fs.config
-#'
-#' @return
-#'@import dplyr
-#'
-topN <- function(importance, fs.config){
-  topN = fs.config$top_n
-  importance = importance %>% mutate(features = rownames(.)) %>% arrange(-Overall)
-  selected_features = importance$features[1:topN]
-  return(selected_features)
-}
-
 #' Title
 #'
 #' @param x
@@ -22,13 +7,15 @@ topN <- function(importance, fs.config){
 #' @return
 #' @export
 #'
-#' @import Hmisc
-correlation <- function(x, y, fs.config) {
-  corr_significance = rcorr(rbind(y, x))$P[1,2:(1+ncol(x))]
-  selected_features = names(x)[corr_significance < fs.config$p_value]
-  return(selected_features)
+correlation_significance <- function(x, y) {
+  corr_significance = Hmisc::rcorr(cbind(x, y))$P[ncol(x) + 1,1:(ncol(x))]
+  return(corr_significance)
 }
 
+correlation_value <- function(x, y){
+  corr_value = abs(Hmisc::rcorr(cbind(x, y))$r[ncol(x) + 1,1:(ncol(x))])
+  return(corr_value)
+}
 
 score_RF_for_topN <- function(x, y, ntree = 500){
   loadNamespace("randomForest")

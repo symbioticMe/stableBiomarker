@@ -18,51 +18,6 @@ check_task_type <- function(data, response.column){
   return(task_type)
 }
 
-#' Attribute Feature Selection method to Embedded, Wrapper of Filter method family
-#'
-#' @param model.method 
-#' @param model.config 
-#' @param fs.method 
-#' @param fs.config 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-check_fs_type <- function(model.method, model.config, fs.method, fs.config){
-  embedded_methods = c('elastic net')
-  filter_methods = tolower(c('TopN','correlation', 'correlation_spearman','correlation_pearson',
-                     'GAM','ANOVA'))
-  wrapper_methods = tolower(c('RFE', 'GA', 'SA'))
-  fs.methods = union(filter_methods, wrapper_methods)
-  
-  fs_type = NULL
-  method_name = ifelse(class(model.method) != 'list', model.method, model.method$label)
-  if (method_name %in% c('glmnet')){
-    if ('alpha' %in% names(model.config)){
-      model_type = "elastic net"
-    }
-    else {model_type = 'ridge regression'}
-  }
-  if (model_type %in% embedded_methods) {
-    fs_type = 'embedded'
-  } else if (is.null(fs.method)){
-    stop(paste("For this method (",model.method,") feature selection method needs to be defined"))
-  } else if (!(fs.method %in% fs.methods)){
-    stop(paste(fs.method, "is not defined with this package"))
-  }
-  if (tolower(fs.method) %in% filter_methods) {fs_type = "filter"}
-  if (tolower(fs.method) %in% wrapper_methods) {fs_type = "wrapper"}
-  
-  fs_types = c('embedded', 'filter', 'wrapper')
-  
-  if(!(fs_type %in% fs_types)) {
-    stop("Feature selection type is not defined!")
-  }
-  
-  return(fs_type)
-}
-
 #' Turn optimization configuration list into trainControl object
 #'
 #' @param optim.config 

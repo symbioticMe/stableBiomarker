@@ -39,7 +39,10 @@ configurePipeline <- function(data, response.column, configFile = NULL, config =
   config_params = setdiff(config_params, method)
 
   fs_config = check_fs_config(fsMethod = config$fs_method,
-                                  config = config, data)
+                              methodName = method_name,
+                              methodConfig = method_config,
+                              config = config, 
+                              data = data, response.column = response.column)
 
   #resamp_config = check_resamp(config)
   resamp_config = check_resamp_config(config = config)
@@ -144,29 +147,79 @@ check_method_config <- function(config, method_name = NULL, method = NULL){
 #' @return list containing:
 #' \item{fs_method}{feature selection method, see \link{link to feature selection}}
 #' \item{fs_config}{configuration of feature selection}
-check_fs_config <- function(fsMethod, config, data){
-  #make uniform fsMethod vs fs_method
-  fs_config = list()
-  if (is.null(fsMethod)){
-    warning('feature selection method missing, opting for the default')
-    fsMethod = 'TopN'
-    fs_config = list(topN = min(100, round(0.1 * ncol(data))))
-  } else if (fsMethod == 'none') {
-    fs_config = NULL
-  }
-  else if (fsMethod == 'TopN'){
-    if (!('top_n' %in% tolower(names(config)))){
-      fs_config$top_n = min(100, round(0.1 * ncol(data)))
-    } else {
-      if (as.numeric(config$top_n) > .5*ncol(data)){
-        warning('number of top features is more than a half of total number of features,
-                are you sure?')
-      }
-      fs_config$top_n = as.numeric(config$top_n)
+check_fs_config <- function(fsMethod, methodName, methodConfig, config, 
+                            data , response.column){
+  
+
+  fs_temp = check_fs_type(methodName, methodConfig, fsMethod, config)
+  fs_type = fs_temp$fs_type
+  fsMethod = fs_temp$fs_method
+  
+  #ToDo: make uniform fsMethod vs fs_method
+  fs_config = config[grepl('^fs_(.)', names(config))]
+  names(fs_config) = gsub('^fs_(.)', '\\1', names(fs_config))
+
+  fs_config = switch(fs_type,
+                     embedded = check_embedded_fs(fs_config, config),
+                     filter = check_filtered_fs(fsMethod, fs_config, config, data),
+                     wrapper = check_wrapper_fs(fsMethod, fs_config, config))
+  
+  return(list(fs_method = fsMethod,
+              fs_config = fs_config))
+}
+
+#' Attribute Feature Selection method to Embedded, Wrapper of Filter method family
+#'
+#' @param model.method 
+#' @param model.config 
+#' @param fs.method 
+#' @param fs.config 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+check_fs_type <- function(model.method, model.config, fs.method, config){
+  #ToDo: add more extensive list of the embedded methods
+  embedded_methods = c('elastic net', 'trees')
+  filter_methods = tolower(c('TopN','significance'))
+  wrapper_methods = tolower(c('RFE', 'GA', 'SA'))
+  fs.methods = union(filter_methods, wrapper_methods)
+  
+  fs_type = NULL
+  method_name = ifelse(class(model.method) != 'list', 
+                       model.method, model.method$label)
+  if (method_name %in% c('glmnet', 'rpart')){
+    if ('alpha' %in% names(model.config)){
+      model_type = "elastic net"
     }
+    else {model_type = 'ridge regression'}
+    if (model_type %in% embedded_methods) {
+      fs_type = 'embedded'
+    } 
+  } 
+  
+  
+  if (!(tolower(fs.method) %in% fs.methods)){
+    stop(paste(fs.method, "is not defined with this package"))
   }
-    return(list(fs_method = fsMethod,
-                fs_config = fs_config))
+  
+  if (is.null(fs_type) & is.null(fs.method)){
+    warning(paste("For this method (",model.method,
+                  ") feature selection method needs to be defined; ",
+                  'opting for the default'))
+    fs.method = 'TopN'
+  }
+  
+  if (tolower(fs.method) %in% filter_methods) {fs_type = "filter"}
+  if (tolower(fs.method) %in% wrapper_methods) {fs_type = "wrapper"}
+  
+  if(is.null(fs_type)) {
+    stop("Feature selection type is not defined!")
+  }
+  
+  return(list(fs_type = fs_type,
+              fs_method = fs.method))
 }
 
 #' Check configuration of resampling

@@ -38,6 +38,9 @@ train_main <- function(data, response = '.outcome',
                        allowParallel = F, verbose = F, ...){
   
   startTime <- proc.time()
+  
+  if(is.null(colnames(data))) stop("x must have column names")
+  
   #create resampling index
   set.seed(1)
   resampleIndex <- create_resampling(response = data[[response]],
@@ -54,7 +57,8 @@ train_main <- function(data, response = '.outcome',
   #Test Summary Function
   #Set seeds
   
-  fs.type = check_fs_type(method$label, method.config, fs.method, fs.config)
+  fs.type = check_fs_type(method$label, method.config, 
+                          fs.method, fs.config)$fs_type
   iterFunction = switch(fs.type,
                         embedded = embeddedIter,
                         filter = filterIter,

@@ -105,16 +105,17 @@ embeddedIter <- function(data, inTrain, outTrain,
   test.fit.result = model$predict(fitted.model,
                                   newdata = test %>% select(-one_of(response.column)))
   
-  #calculate the performance (in-Train and hold-out set)
+  #calculate the performance (in-Train and hold-out set) -----------------------
   perf.training = postResample(train.fit.result, training[[response.column]])
   perf.test = postResample(test.fit.result, test[[response.column]])
   
   
-  return(list(train = model.train,
+  return(list(model = fitted.model,
               importance = importance,
               selected_features = selected_features,
               perf.training = perf.training,
               perf.test = perf.test,
+              method = method,
               fs.config = fs.config,
               fs.method = fs.method,
               var_test = var_test,

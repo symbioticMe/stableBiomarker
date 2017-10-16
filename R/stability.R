@@ -35,7 +35,7 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
   set_methods = c('kuncheva', 'sorensen', 'ochiai', 'jaccard')
   numeric_methods = c('canberra_stability',
           'canberra_spearman','cor_spearman','cor_pearson')
-
+  if (method == 'correlation') {method = 'cor_pearson'}
   if (method %in% set_methods & all(sapply(x, class) == 'character')){
     ncx <- length(x)
     r <- matrix(0, nrow = ncx, ncol = ncx)

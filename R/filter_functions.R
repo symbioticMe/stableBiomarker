@@ -58,11 +58,11 @@ filterIter <- function(data, inTrain,
   retained <- filter_features(scores, x, y, fs.method, fs.config$threshold)
   ## deal with zero length results
   if (is.logical(retained)) {
-    testX <- testX[, which(retained), drop = FALSE]
-    x_selected = x[, which(retained), drop = FALSE]
+    testX <- testX %>% select(which(retained))
+    x_selected = x %>% select(which(retained))
   } else {
-    testX <- testX[, names(retained), drop = FALSE]
-    x_selected = x[, names(retained), drop = FALSE]
+    testX <- testX %>% select(names(retained))
+    x_selected = x %>% select(names(retained))
   }
   
   default.params = method$grid(x_selected, y, 1)

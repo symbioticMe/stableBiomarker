@@ -54,7 +54,8 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
                           kuncheva = kuncheva(x2, y2, num.features = num.features),
                           sorensen = sorensen(x2, y2),
                           jaccard  = jaccard(x2, y2),
-                          ochiai   = ochiai(x2, y2))
+                          ochiai   = ochiai(x2, y2),
+                          all = all(x2, y2, type = 'set'))
       }
     }
   } else if (method %in% numeric_methods &
@@ -72,7 +73,8 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
         r[i, j] <- switch(method,
                  cor_spearman = cor(x2, y2, method = 'spearman'),
                  cor_pearson = cor(x2, y2, method = 'pearson'),
-                 canberra = canberra(x2, y2))
+                 canberra = canberra(x2, y2), 
+                 all = all(x2, y2, type = 'numeric'))
       }
     }
     #check if x is numeric
@@ -84,4 +86,27 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
     stop("invalid method of stability inference!")
   }
   return(r[lower.tri(r)])
+}
+
+all <- function(x, y, type = 'set', num.features = NULL){
+  if (type == 'set'){
+    kuncheva = kuncheva(x2, y, num.features = num.features),
+    sorensen = sorensen(x2, y2)
+    jaccard  = jaccard(x2, y2)
+    ochiai   = ochiai(x2, y2)
+    out <- list(kuncheva = kuncheva,
+                sorensen = sorensen,
+                jaccard = jaccard,
+                ochiai = ochiai)
+  } else {
+    if (type == 'numeric'){
+      cor_spearman = cor(x2, y2, method = 'spearman'),
+      cor_pearson = cor(x2, y2, method = 'pearson'),
+      canberra = canberra(x2, y2)
+      out = list(cor_spearman = cor_spearman,
+                 cor_pearson = cor_pearson,
+                 canberra = canberra)
+    }
+  }
+  return(out)
 }

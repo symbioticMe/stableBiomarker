@@ -90,19 +90,19 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
 
 all <- function(x, y, type = 'set', num.features = NULL){
   if (type == 'set'){
-    kuncheva = kuncheva(x2, y, num.features = num.features),
-    sorensen = sorensen(x2, y2)
-    jaccard  = jaccard(x2, y2)
-    ochiai   = ochiai(x2, y2)
+    kuncheva = kuncheva(x, y, num.features = num.features)
+    sorensen = sorensen(x, y)
+    jaccard  = jaccard(x, y)
+    ochiai   = ochiai(x, y)
     out <- list(kuncheva = kuncheva,
                 sorensen = sorensen,
                 jaccard = jaccard,
                 ochiai = ochiai)
   } else {
     if (type == 'numeric'){
-      cor_spearman = cor(x2, y2, method = 'spearman'),
-      cor_pearson = cor(x2, y2, method = 'pearson'),
-      canberra = canberra(x2, y2)
+      cor_spearman = cor(x, y, method = 'spearman')
+      cor_pearson = cor(x, y, method = 'pearson')
+      canberra = canberra(x, y)
       out = list(cor_spearman = cor_spearman,
                  cor_pearson = cor_pearson,
                  canberra = canberra)

@@ -55,7 +55,7 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
                           sorensen = sorensen(x2, y2),
                           jaccard  = jaccard(x2, y2),
                           ochiai   = ochiai(x2, y2),
-                          all = all(x2, y2, type = 'set'))
+                          all = all_metrics(x2, y2, type = 'set'))
       }
     }
   } else if (method %in% numeric_methods &
@@ -74,7 +74,7 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
                  cor_spearman = cor(x2, y2, method = 'spearman'),
                  cor_pearson = cor(x2, y2, method = 'pearson'),
                  canberra = canberra(x2, y2), 
-                 all = all(x2, y2, type = 'numeric'))
+                 all = all_metrics(x2, y2, type = 'numeric'))
       }
     }
     #check if x is numeric
@@ -88,7 +88,7 @@ calc_pairwise_stability <- function(x, method, num.features = NULL){
   return(r[lower.tri(r)])
 }
 
-all <- function(x, y, type = 'set', num.features = NULL){
+all_metrics <- function(x, y, type = 'set', num.features = NULL){
   if (type == 'set'){
     kuncheva = kuncheva(x, y, num.features = num.features)
     sorensen = sorensen(x, y)

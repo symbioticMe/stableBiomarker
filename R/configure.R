@@ -199,10 +199,16 @@ check_fs_type <- function(model.method, model.config, fs.method, config){
     } 
   } 
   
-  
-  if (!(tolower(fs.method) %in% fs.methods)){
-    stop(paste(fs.method, "is not defined with this package"))
+  if (fs_type == 'embedded'){
+    if (tolower(fs.method) != 'none'){
+      warning(sprintf('No method is required for embedded method, %s method will be ignored', fs.method))
+    }
+  } else {
+    if (!(tolower(fs.method) %in% fs.methods)){
+      stop(paste(fs.method, "is not defined with this package"))
+    }
   }
+    
   
   if (is.null(fs_type) & is.null(fs.method)){
     warning(paste("For this method (",model.method,
